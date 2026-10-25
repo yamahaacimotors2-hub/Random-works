@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yamaha BD সহায়ক (প্রোটোটাইপ)</title>
+<style>
+  :root{--bg:#0b1020;--card:#151b30;--fg:#eef1f8;--mut:#8b94b3;--acc:#2f6bff;--user:#223059}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,"Noto Sans Bengali",sans-serif;display:flex;justify-content:center}
+  main{width:100%;max-width:520px;height:100dvh;display:flex;flex-direction:column;padding:0 16px}
+  header{padding:16px 0 8px}
+  h1{font-size:18px;margin:0}
+  small{color:var(--mut)}
+  #log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:8px 0}
+  .m{max-width:85%;padding:10px 12px;border-radius:12px;background:var(--card);line-height:1.5}
+  .m.u{align-self:flex-end;background:var(--user)}
+  .bar{display:flex;gap:8px;padding:12px 0 16px}
+  input{flex:1;padding:12px;border-radius:10px;border:1px solid #2a3355;background:var(--card);color:var(--fg);font-size:16px}
+  button{border:0;border-radius:10px;padding:0 14px;background:var(--acc);color:#fff;font-size:16px;min-height:44px;cursor:pointer}
+  button.rec{background:#d93a3a}
+  #status{color:var(--mut);font-size:13px;min-height:18px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Yamaha BD সহায়ক</h1>
+    <small>AI ভয়েস সহকারী · প্রোটোটাইপ, Yamaha-র অফিশিয়াল নয়</small>
+  </header>
+  <div id="log" aria-live="polite"></div>
+  <div id="status"></div>
+  <div class="bar">
+    <button id="mic" aria-label="কথা বলুন">🎤</button>
+    <input id="txt" placeholder="লিখুন বা মাইকে বলুন…" autocomplete="off">
+    <button id="send">পাঠান</button>
+  </div>
+</main>
+<script>
+const log = document.getElementById('log'), txt = document.getElementById('txt'),
+      mic = document.getElementById('mic'), statusEl = document.getElementById('status');
+const history = [];
+let serverTts = false, speaking = null;
+
+fetch('/api/config').then(r => r.json()).then(c => serverTts = c.server_tts).catch(() => {});
+
+function add(role, text) {
+  const d = document.createElement('div');
+  d.className = 'm' + (role === 'user' ? ' u' : '');
+  d.textContent = text;
+  log.appendChild(d); log.scrollTop = log.scrollHeight;
+}
+
+async function speak(text) {
+  stopSpeaking();
+  if (serverTts) {
+    try {
+      const r = await fetch('/api/tts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
+      if (r.ok) { speaking = new Audio(URL.createObjectURL(await r.blob())); speaking.play(); return; }
+    } catch {}
+  }
+  if (!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'bn-BD';
+  const v = speechSynthesis.getVoices().find(v => v.lang.toLowerCase().startsWith('bn'));
+  if (v) u.voice = v; else statusEl.textContent = 'এই ডিভাইসে বাংলা ভয়েস নেই, উত্তর শুধু লেখায় দেখানো হচ্ছে।';
+  speechSynthesis.speak(u);
+}
+function stopSpeaking() {
+  if (speaking) { speaking.pause(); speaking = null; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+
+async function send(text) {
+  text = text.trim(); if (!text) return;
+  stopSpeaking();
+  add('user', text); history.push({role:'user', content:text}); txt.value = '';
+  statusEl.textContent = 'ভাবছি…';
+  try {
+    const r = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({messages: history})});
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    history.push({role:'assistant', content:data.reply});
+    add('bot', data.reply); statusEl.textContent = data.action === 'handoff' ? 'হিউম্যান প্রতিনিধির কাছে পাঠানো হয়েছে' : '';
+    speak(data.reply);
+  } catch { statusEl.textContent = 'সংযোগে সমস্যা, আবার চেষ্টা করুন।'; }
+}
+
+document.getElementById('send').onclick = () => send(txt.value);
+txt.onkeydown = e => { if (e.key === 'Enter') send(txt.value); };
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) { mic.disabled = true; statusEl.textContent = 'এই ব্রাউজারে মাইক সাপোর্ট নেই, Chrome ব্যবহার করুন।'; }
+else {
+  const rec = new SR(); rec.lang = 'bn-BD'; rec.interimResults = false;
+  let on = false;
+  rec.onresult = e => send(e.results[0][0].transcript);
+  rec.onend = () => { on = false; mic.classList.remove('rec'); };
+  rec.onerror = e => { statusEl.textContent = 'মাইক সমস্যা: ' + e.error; };
+  mic.onclick = () => { if (on) return rec.stop(); stopSpeaking(); on = true; mic.classList.add('rec'); statusEl.textContent = 'শুনছি…'; rec.start(); };
+}
+add('bot', 'আসসালামু আলাইকুম! আমি Yamaha BD সহায়ক, একটি AI সহকারী। কীভাবে সাহায্য করতে পারি?');
+</script>
+</body>
+</html>
