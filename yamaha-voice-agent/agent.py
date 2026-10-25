@@ -10,6 +10,23 @@ import httpx
 ROOT = Path(__file__).parent
 LEADS_FILE = ROOT / "leads.jsonl"
 
+
+def load_env_file() -> None:
+    """Read KEY=VALUE lines from .env (does not override variables already set)."""
+    f = ROOT / ".env"
+    if not f.exists():
+        return
+    for line in f.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            v = v.strip().strip('"').strip("'")
+            if v:
+                os.environ.setdefault(k.strip(), v)
+
+
+load_env_file()
+
 SYSTEM_PROMPT = """তুমি "Yamaha BD সহায়ক", Yamaha মোটরসাইকেল সম্পর্কে গ্রাহকদের সাহায্যকারী একটি AI ভয়েস সহকারী (এটি একটি প্রোটোটাইপ, Yamaha-র অফিশিয়াল প্রতিনিধি নয়)।
 
 নিয়ম:

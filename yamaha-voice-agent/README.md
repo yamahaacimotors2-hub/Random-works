@@ -6,6 +6,7 @@ Unofficial prototype. Not affiliated with or approved by Yamaha. Pitch to Yamaha
 - STT: browser Web Speech API (`bn-BD`, Chrome)
 - LLM: Gemini free tier (`GEMINI_API_KEY`); without a key it runs in demo mode
 - TTS: browser `speechSynthesis` (needs a Bangla voice on the device)
+- One click start: Windows `run.bat`, Mac `run.command` (first run asks you to paste the key in `.env`)
 - Tools: lead capture and human handoff, written to `leads.jsonl`
 
 ## Run
